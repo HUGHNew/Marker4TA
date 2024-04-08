@@ -1,0 +1,5 @@
+PREGRADE_HEADER = "学号,姓名,扣分情况,总扣除分数"
+PROVIDER_HEADER = "学号,姓名"
+SCORE_HEADER = "学号,姓名,作业得分"
+SUBMIT_HEADER = "学号,文件后缀,提交文件名"
+STAT_HEADER = "学号,姓名,{},平均分数"
