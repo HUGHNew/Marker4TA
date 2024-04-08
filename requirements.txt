@@ -1,0 +1,3 @@
+fire # google/python-fire
+reportlab # https://docs.reportlab.com/install/open_source_installation/
+pypdf # py-pdf/pypdf
