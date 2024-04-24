@@ -71,13 +71,26 @@ def batch_stats(
 
     # write storage file
     header = STAT_HEADER.format(stringify_list(range(1, len(paths)+1), ',')) + '\n'
+    mean_list = []
+    max_name, max_score = None, 0
+    min_name, min_score = None, 100
     with open(storage, "w", encoding="utf-8-sig") as writer:  # for xlsx recognization
         writer.write(header)
         for k, v in grades.items():
             mean = reduce(lambda acc, x: acc + x[0] * x[1], zip(v, weight_list), 0)
             writer.write(f"{k},{mapper[k]},{stringify_list(v, ',')},{mean:.1f}\n")
             # batch stats info
+            mean_list.append(mean)
+            if mean > max_score:
+                max_score = mean
+                max_name = mapper[k]
+            if mean < min_score:
+                min_score = mean
+                min_name = mapper[k]
             print(f"{k},{mapper[k]}\t: {mean}")
+    print(f"avg: {sum(mean_list)/len(mean_list):.1f}")
+    print(f"max: {max_name}:{max_score:.1f}")
+    print(f"min: {min_name}:{min_score:.1f}")
 
 
 if __name__ == "__main__":

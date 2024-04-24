@@ -6,6 +6,7 @@ import fire
 
 def with_BOM(source: str, target: str, header: str = "", src_encoding="utf-8"):
     """
+    Convert a UTF-8 csv file to UTF-8-BOM csv file.
     Args:
         source: the path of the source file
         target: the path of the target file

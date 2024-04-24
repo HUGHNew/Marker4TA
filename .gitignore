@@ -1,2 +1,8 @@
 _*.py
 __pycache__
+demo
+dist
+
+*.pdf
+*.otf
+*.ttc

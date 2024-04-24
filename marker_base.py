@@ -1,10 +1,32 @@
-from typing import Callable
+from typing import Callable, Optional
+from dataclasses import dataclass
+import sys
+import os.path as osp
 
 # pip install pypdf reportlab
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from pypdf import PdfReader, PdfWriter
+
+
+@dataclass
+class FontInfo:
+    name: str
+    size: float
+    color: colors.Color
+
+# You can download the font from https://github.com/notofonts/noto-cjk
+LocalSCFontPath = "assets/NotoSerifSC-VF.ttf"
+AbsSCFontPath = osp.join(osp.dirname(sys.argv[0]), LocalSCFontPath)
+SCFontName = "NotoSC"
+pdfmetrics.registerFont(TTFont(SCFontName, AbsSCFontPath))
+
+DefaultFonts = {
+    "zh": FontInfo(SCFontName, 20, colors.lightblue),
+    "en": FontInfo("Times-Roman", 28, colors.red),
+}
 
 
 def get_page_size(src: str) -> tuple[float, float]:
@@ -30,18 +52,18 @@ def create_sign_pdf(
     pdfname: str,
     content: str,
     pagesize: tuple[float, float] | str,
-    location: tuple[float, float] = (50, 50),
+    extra: Optional[str] = None,
+    xstart: float = 10,
     loff=5,
-    color: colors.Color = colors.red,
-    fontname: str = "Times-Roman",
-    fontsize: float = 28,
+    font_zh: FontInfo = DefaultFonts["zh"],
+    font_en: FontInfo = DefaultFonts["en"],
 ):
     """
     Create a signed pdf with content and outilier rectangle.
     Args:
         pdfname: str, output pdf file name
         content: str, content to be signed
-        location: tuple[float, float], (x, y) coordinates of the text location on the page, default is (50, 50). The origin is at the top left corner of the page. (Different from the origin of the coordinate system in math which is the standard view of reportlab.)
+        xstart: float, x coordinate of the start of the content, default is 10. The origin is at the top left corner of the page. (Different from the origin of the coordinate system in math which is the standard view of reportlab.)
         loff: float, coordinate offset for rect, default is 5.
     """
     if isinstance(pagesize, str):
@@ -53,13 +75,28 @@ def create_sign_pdf(
         raise TypeError("pagesize should be a str or a tuple of (width, height)")
 
     c = canvas.Canvas(pdfname, pagesize=(width, height))
-    c.setFillColor(color)
-    c.setFont(fontname, fontsize)
-    tw, th = get_text_size(content, fontname, fontsize)
-    x, y = location
+
+    # draw score text
+    c.setFillColor(font_en.color)
+    c.setFont(font_en.name, font_en.size)
+    tw, th = get_text_size(content, font_en.name, font_en.size)
+    x, y = xstart, th + loff
     c.drawString(x, height - y, content)
-    c.setStrokeColor(colors.red)
+
+    # draw score frame
+    c.setStrokeColor(font_en.color)
     c.rect(x - loff, height - y - loff, tw + 2 * loff, th + 2 * loff)
+
+    if extra is not None:
+        # draw extra text if provided
+        c.setFillColor(font_zh.color)
+        c.setFont(font_zh.name, font_zh.size)
+        ex, ey = x + tw + 2 * loff, th
+        for line in extra.split("\n"):
+            tw, th = get_text_size(line, font_zh.name, font_zh.size)
+            c.drawString(ex, height - ey, line)
+            ey += th + loff
+
     c.showPage()
     c.save()
 
@@ -69,7 +106,10 @@ def mark_task(
     content: str,
     sign_pdf: str,
     out_pdf: str,
-    signer: Callable[[str, str, tuple[float, float] | str], None] = create_sign_pdf,
+    extra: Optional[str] = None,
+    signer: Callable[
+        [str, str, tuple[float, float] | str, Optional[str]], None
+    ] = create_sign_pdf,
 ):
     """
     Args:
@@ -78,8 +118,7 @@ def mark_task(
         sign_pdf: str, output pdf file name for the signature (temporary file)
         out_pdf: str, output pdf file name for the marked task
     """
-    # create_sign_pdf(sign_pdf, content, src_pdf)
-    signer(sign_pdf, content, src_pdf)
+    signer(sign_pdf, content, src_pdf, extra)
     src = PdfReader(src_pdf)
     sign = PdfReader(sign_pdf)
     pages = src.pages
