@@ -1,11 +1,23 @@
 import os
 import os.path as osp
+from pathlib import Path
 from typing import Callable
 
 import fire
 
 from header import PROVIDER_HEADER, SCORE_HEADER, SUBMIT_HEADER
 
+def get_sid(name: str) -> str:
+    """
+    get the sid from the filename
+    Args:
+        name: the filename
+    Returns:
+        the sid of the submission
+    """
+    loc = name.find("202")
+    assert loc != -1, f"{name} does not contain SID"
+    return name[loc:loc+13] # 4+5+4
 
 def __dir_walker(path: str, output: str, header: str, processor: Callable[[str], str]):
     """
@@ -124,6 +136,85 @@ def submission_info_by_roster(sub: str, roster: str="names.csv"):
     for sid in ja:
         print(f"{sid} is unkown, but already submit")
 
+def signin_info_by_roster(
+        sub: str, signin: str="signin", record: str="signer.csv",
+        roster: str="names.csv"):
+
+    with open(roster, "r", encoding="utf-8-sig") as fd:
+        lines = fd.read().splitlines()[1:]
+    sgn, rd, rl = {}, {}, []
+    for line in lines:
+        seq, sid, name, _ = line.split(",", 3)
+        rl.append(sid)
+        rd[sid] = False
+
+    src_fld = Path(sub)
+    folders = [f for f in src_fld.iterdir() if f.is_dir()]
+    for fld in folders:
+        signin_folder = fld/signin
+        if not signin_folder.is_dir(): continue
+        for k in rd: # rd clear
+            rd[k] = False
+        for file in signin_folder.iterdir():
+            if (not file.is_file()) or file.suffix == "csv": continue
+            try:
+                sid = get_sid(file.name)
+                assert sid in rd, f"{file.name} SID not found in roster"
+                rd[sid] = True
+            except AssertionError:
+                print(f"{file.name} needs manual check")
+        sgn[fld.name] = rd.copy()
+
+    with open(record, "w", encoding="utf-8-sig") as fd:
+        # TODO
+        pass
+
+def get_sid_from_folder(sub: str) -> list:
+    files = os.listdir(sub)
+    fl = []
+    for f in files:
+        fn = osp.join(sub, f)
+        if (not osp.isfile(fn)) or fn.endswith(".csv"): continue
+        try:
+            fl.append(get_sid(f))
+        except AssertionError:
+            print(f"{f} needs manual check")
+
+    # sort sid by integer value
+    return sorted(fl, key=lambda x: int(x))
+
+
+def get_unchecked_sid(sub: str, roster: str="names.csv") -> list:
+    with open(roster, "r", encoding="utf-8-sig") as fd:
+        lines = fd.read().splitlines()[1:]
+    rd, rl = {}, []
+    for line in lines:
+        seq, sid, name, _ = line.split(",", 3)
+        rl.append(sid)
+    nameset = set(rl)
+
+    subset = set(get_sid_from_folder(sub))
+
+    diffset = nameset - subset
+    return sorted(list(diffset), key=lambda x: int(x))
+
+def get_sid_from_roster(roster: str="names.csv") -> list:
+    with open(roster, "r", encoding="utf-8-sig") as fd:
+        lines = fd.read().splitlines()[1:]
+    rl = []
+    for line in lines:
+        seq, sid, name, _ = line.split(",", 3)
+        rl.append(sid)
+    return rl
+
+def get_sid_diff(sub: str, roster: str="names.csv"):
+    roster = get_sid_from_roster(roster)
+    sub = get_sid_from_folder(sub)
+    diff = set(roster) - set(sub)
+    subs = sorted(list(diff), key=lambda x: int(x))
+    for sid in subs:
+        print(f"{sid} is not in submission folder")
+
 if __name__ == "__main__":
     fire.Fire(
         {
@@ -131,5 +222,6 @@ if __name__ == "__main__":
             "backup": backup,  # backup submission file name before manually modification for batch process
             "check": submission_check,  # check submission file name and format
             "diff": submission_info_by_roster,  # check submission diff with roster
+            "diff_cwd": get_sid_diff,
         }
     )
